@@ -16,3 +16,13 @@ This repository originally contains a Unity project implementing an ant simulati
 - Use ES6 modules and features when possible.
 - Document major features and decisions in `js/README.md`.
 
+
+## Task and Progress Tracking
+
+- Keep a list of upcoming tasks in a "Tasks" section below.
+- Maintain a "Progress" section below recording completed work.
+- Update both sections as you work on the project.
+
+### Tasks
+
+### Progress
