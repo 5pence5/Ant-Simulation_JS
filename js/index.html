@@ -1,11 +1,32 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Ant Simulation JS</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ant Simulation</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0; /* Optional: to see the canvas boundaries */
+        }
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
 </head>
 <body>
-  <canvas id="canvas"></canvas>
-  <script type="module" src="main.js"></script>
+    <canvas id="simulationCanvas"></canvas>
+    <script src="AntSettings.js"></script>
+    <script src="Vector2.js"></script>
+    <script src="PerceptionMap.js"></script>
+    <script src="FoodSource.js"></script>
+    <script src="Ant.js"></script>
+    <script src="AntColony.js"></script>
+    <script src="Renderer.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>

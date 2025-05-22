@@ -1,3 +1,1 @@
-# JavaScript Ant Simulation
-
-This directory will contain the JavaScript port of the ant simulation. The included files are placeholders.
+This directory contains the JavaScript port of the Unity ant simulation. Work in progress.
