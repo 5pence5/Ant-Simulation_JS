@@ -24,5 +24,8 @@ This repository originally contains a Unity project implementing an ant simulati
 - Update both sections as you work on the project.
 
 ### Tasks
+- Add interactive controls to tweak colony parameters (pheromone rates, ant count).
+- Optimise pheromone rendering to reduce fill calls on large canvases.
 
 ### Progress
+- Ported the Unity C# simulation behaviour to JavaScript with Canvas-based rendering and pheromone trails.
