@@ -5,6 +5,7 @@ import {
   clamp,
   directionFromAngle,
   distanceSquared,
+  lerp,
   randomRange,
   wrap,
   wrapAngle,
@@ -24,7 +25,20 @@ export class Ant {
     this.senseAngle = Math.PI / 4;
     this.senseDistance = 24;
     this.depositRate = 220;
+    this.dstBetweenMarkers = 8;
+    this.depositMinMultiplier = 0.5;
+    this.homeDepositRamp = 2.4;
+    this.foodDepositRamp = 1.6;
+    this.depositJitter = 3;
     this.jitterStrength = Math.PI * 0.5;
+    this.clock = 0;
+    this.distanceSinceDeposit = this.dstBetweenMarkers;
+    this.lastDeposit = {
+      time: -Infinity,
+      position: { ...position },
+    };
+    this.lastHomeDeparture = 0;
+    this.lastFoodPickup = 0;
   }
 
   reset(position) {
@@ -33,17 +47,25 @@ export class Ant {
     this.carryingFood = false;
     this.heading = Math.random() * TAU;
     this.speed = randomRange(35, 55);
+    this.clock = 0;
+    this.distanceSinceDeposit = this.dstBetweenMarkers;
+    this.lastDeposit = {
+      time: -Infinity,
+      position: { ...position },
+    };
+    this.lastHomeDeparture = 0;
+    this.lastFoodPickup = 0;
   }
 
   update(dt, world) {
     const { pheromones, width, height } = world;
-    const depositType = this.state === SEARCHING ? 'home' : 'food';
-    pheromones.addPheromone(this.position.x, this.position.y, depositType, this.depositRate * dt);
+    this.clock += dt;
 
     const targetField = this.state === SEARCHING ? 'food' : 'home';
     const desiredHeading = this._chooseHeading(targetField, world);
     this._steerTowards(desiredHeading, dt);
-    this._move(dt, width, height);
+    const travelled = this._move(dt, width, height);
+    this._maybeDeposit(dt, pheromones, travelled);
     this._interact(world);
   }
 
@@ -84,11 +106,45 @@ export class Ant {
 
   _move(dt, width, height) {
     const direction = directionFromAngle(this.heading);
-    this.position.x += direction.x * this.speed * dt;
-    this.position.y += direction.y * this.speed * dt;
+    const distance = this.speed * dt;
+    this.position.x += direction.x * distance;
+    this.position.y += direction.y * distance;
 
     this.position.x = wrap(this.position.x, 0, width);
     this.position.y = wrap(this.position.y, 0, height);
+    return distance;
+  }
+
+  _maybeDeposit(dt, pheromones, travelled) {
+    this.distanceSinceDeposit += travelled;
+    if (this.distanceSinceDeposit < this.dstBetweenMarkers) {
+      return;
+    }
+
+    const depositType = this.state === SEARCHING ? 'home' : 'food';
+    const rampDuration = this.state === SEARCHING ? this.homeDepositRamp : this.foodDepositRamp;
+    const referenceTime = this.state === SEARCHING ? this.lastHomeDeparture : this.lastFoodPickup;
+    const elapsed = Math.max(0, this.clock - referenceTime);
+    const ratio = rampDuration > 0 ? clamp(elapsed / rampDuration, 0, 1) : 1;
+    const multiplier = lerp(this.depositMinMultiplier, 1, ratio);
+    const offsetX = randomRange(-this.depositJitter, this.depositJitter);
+    const offsetY = randomRange(-this.depositJitter, this.depositJitter);
+
+    pheromones.addPheromone(
+      this.position.x + offsetX,
+      this.position.y + offsetY,
+      depositType,
+      this.depositRate * dt * multiplier,
+    );
+
+    this.lastDeposit = {
+      time: this.clock,
+      position: { x: this.position.x, y: this.position.y },
+    };
+    this.distanceSinceDeposit -= this.dstBetweenMarkers;
+    if (this.distanceSinceDeposit < 0) {
+      this.distanceSinceDeposit = 0;
+    }
   }
 
   _interact(world) {
@@ -100,6 +156,8 @@ export class Ant {
         food.take();
         const toNest = Math.atan2(world.nest.position.y - this.position.y, world.nest.position.x - this.position.x);
         this.heading = toNest + randomRange(-Math.PI / 6, Math.PI / 6);
+        this.lastFoodPickup = this.clock;
+        this.distanceSinceDeposit = this.dstBetweenMarkers;
       }
     } else if (this.state === RETURNING) {
       const distanceToNestSq = distanceSquared(this.position, world.nest.position);
@@ -108,6 +166,8 @@ export class Ant {
         this.state = SEARCHING;
         world.nest.deliverFood();
         this.heading = randomRange(-Math.PI, Math.PI);
+        this.lastHomeDeparture = this.clock;
+        this.distanceSinceDeposit = this.dstBetweenMarkers;
       }
     }
   }
