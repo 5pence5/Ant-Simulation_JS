@@ -2,10 +2,14 @@ import {
   TAU,
   add,
   angleDifference,
+  angleFromDirection,
   clamp,
   directionFromAngle,
   distanceSquared,
+  normalize,
   randomRange,
+  scale,
+  subtract,
   wrap,
   wrapAngle,
 } from './utils.js';
@@ -21,10 +25,15 @@ export class Ant {
     this.state = SEARCHING;
     this.carryingFood = false;
     this.turnSpeed = Math.PI * 2;
-    this.senseAngle = Math.PI / 4;
-    this.senseDistance = 24;
+    this.sensorSpacing = 24;
+    this.sensorRadius = this.sensorSpacing * 0.6;
+    this.timeBetweenDirUpdate = 0.15;
+    this.pheromoneWeight = 1;
     this.depositRate = 220;
     this.jitterStrength = Math.PI * 0.5;
+    this.nextDirUpdateTime = randomRange(0, this.timeBetweenDirUpdate);
+    this.cachedHeading = this.heading;
+    this.pheromoneSteerForce = directionFromAngle(this.heading);
   }
 
   reset(position) {
@@ -33,6 +42,9 @@ export class Ant {
     this.carryingFood = false;
     this.heading = Math.random() * TAU;
     this.speed = randomRange(35, 55);
+    this.nextDirUpdateTime = randomRange(0, this.timeBetweenDirUpdate);
+    this.cachedHeading = this.heading;
+    this.pheromoneSteerForce = directionFromAngle(this.heading);
   }
 
   update(dt, world) {
@@ -41,38 +53,80 @@ export class Ant {
     pheromones.addPheromone(this.position.x, this.position.y, depositType, this.depositRate * dt);
 
     const targetField = this.state === SEARCHING ? 'food' : 'home';
-    const desiredHeading = this._chooseHeading(targetField, world);
+    const desiredHeading = this._chooseHeading(targetField, world, dt);
     this._steerTowards(desiredHeading, dt);
     this._move(dt, width, height);
     this._interact(world);
   }
 
-  _chooseHeading(targetField, world) {
-    const senseOffsets = [0, this.senseAngle, -this.senseAngle];
-    let bestHeading = this.heading;
-    let bestValue = -Infinity;
+  _chooseHeading(targetField, world, dt) {
+    this.nextDirUpdateTime -= dt;
+    if (this.nextDirUpdateTime > 0) {
+      return this.cachedHeading;
+    }
 
-    for (const offset of senseOffsets) {
-      const direction = directionFromAngle(this.heading + offset);
-      const samplePos = add(this.position, {
-        x: direction.x * this.senseDistance,
-        y: direction.y * this.senseDistance,
-      });
-      const value = world.pheromones.sample(samplePos.x, samplePos.y, targetField);
-      const jitter = randomRange(-1, 1) * 5; // slight randomisation
-      const scoredValue = value + jitter;
-      if (scoredValue > bestValue) {
-        bestValue = scoredValue;
-        bestHeading = this.heading + offset;
+    while (this.nextDirUpdateTime <= 0) {
+      this.nextDirUpdateTime += this.timeBetweenDirUpdate;
+    }
+
+    const forwardDir = directionFromAngle(this.heading);
+    const lateral = { x: -forwardDir.y, y: forwardDir.x };
+
+    const centreSample = add(this.position, scale(forwardDir, this.sensorSpacing));
+    const leftSample = add(centreSample, scale(lateral, this.sensorSpacing));
+    const rightSample = add(centreSample, scale(lateral, -this.sensorSpacing));
+
+    const centreStrength = world.pheromones.sampleArea(
+      centreSample.x,
+      centreSample.y,
+      this.sensorRadius,
+      targetField,
+    );
+    const leftStrength = world.pheromones.sampleArea(
+      leftSample.x,
+      leftSample.y,
+      this.sensorRadius,
+      targetField,
+    );
+    const rightStrength = world.pheromones.sampleArea(
+      rightSample.x,
+      rightSample.y,
+      this.sensorRadius,
+      targetField,
+    );
+
+    const candidates = [
+      { strength: centreStrength, direction: normalize(subtract(centreSample, this.position)) },
+      { strength: leftStrength, direction: normalize(subtract(leftSample, this.position)) },
+      { strength: rightStrength, direction: normalize(subtract(rightSample, this.position)) },
+    ];
+
+    let best = candidates[0];
+    let bestScore = candidates[0].strength * this.pheromoneWeight;
+    for (let i = 1; i < candidates.length; i += 1) {
+      const score = candidates[i].strength * this.pheromoneWeight;
+      if (score > bestScore) {
+        best = candidates[i];
+        bestScore = score;
       }
     }
 
-    if (bestValue <= 0) {
-      bestHeading = this.heading + randomRange(-this.senseAngle, this.senseAngle);
+    if (!Number.isFinite(bestScore) || bestScore <= 0) {
+      this.pheromoneSteerForce = { x: 0, y: 0 };
+      const wander = randomRange(-this.jitterStrength, this.jitterStrength) * 0.5;
+      this.cachedHeading = wrapAngle(this.heading + wander);
+      return this.cachedHeading;
     }
 
-    const wander = randomRange(-this.jitterStrength, this.jitterStrength) * 0.5;
-    return wrapAngle(bestHeading + wander);
+    this.pheromoneSteerForce = scale(best.direction, bestScore);
+    const combined = normalize({
+      x: forwardDir.x + this.pheromoneSteerForce.x,
+      y: forwardDir.y + this.pheromoneSteerForce.y,
+    });
+
+    const wander = randomRange(-this.jitterStrength, this.jitterStrength) * 0.25;
+    this.cachedHeading = wrapAngle(angleFromDirection(combined) + wander);
+    return this.cachedHeading;
   }
 
   _steerTowards(targetHeading, dt) {
