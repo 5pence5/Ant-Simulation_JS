@@ -45,6 +45,37 @@ export class PheromoneGrid {
     return field[index];
   }
 
+  sampleArea(x, y, radius, type) {
+    const field = this.fields[type];
+    if (!field || radius <= 0) return 0;
+
+    const minCol = clamp(Math.floor((x - radius) / this.cellSize), 0, this.cols - 1);
+    const maxCol = clamp(Math.floor((x + radius) / this.cellSize), 0, this.cols - 1);
+    const minRow = clamp(Math.floor((y - radius) / this.cellSize), 0, this.rows - 1);
+    const maxRow = clamp(Math.floor((y + radius) / this.cellSize), 0, this.rows - 1);
+
+    let total = 0;
+    let count = 0;
+    const radiusSq = radius * radius;
+
+    for (let row = minRow; row <= maxRow; row += 1) {
+      const cy = row * this.cellSize + this.cellSize * 0.5;
+      for (let col = minCol; col <= maxCol; col += 1) {
+        const cx = col * this.cellSize + this.cellSize * 0.5;
+        const dx = cx - x;
+        const dy = cy - y;
+        if (dx * dx + dy * dy > radiusSq) continue;
+
+        const index = row * this.cols + col;
+        total += field[index];
+        count += 1;
+      }
+    }
+
+    if (count === 0) return 0;
+    return total / count;
+  }
+
   update(dt) {
     this._evaporate(dt);
     this._diffuse(dt);
