@@ -19,13 +19,8 @@ This repository originally contains a Unity project implementing an ant simulati
 
 ## Task and Progress Tracking
 
-- Keep a list of upcoming tasks in a "Tasks" section below.
-- Maintain a "Progress" section below recording completed work.
-- Update both sections as you work on the project.
+- Keep upcoming tasks and completed-work records in the project history document linked below.
 
-### Tasks
-- Add interactive controls to tweak colony parameters (pheromone rates, ant count).
-- Optimise pheromone rendering to reduce fill calls on large canvases.
+## Historical records
 
-### Progress
-- Ported the Unity C# simulation behaviour to JavaScript with Canvas-based rendering and pheromone trails.
+Previous run logs and status snapshots are preserved in [docs/agent-history-2026-09-07.md](docs/agent-history-2026-09-07.md). Consult them only for historical context; they are not current task instructions.
